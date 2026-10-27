@@ -97,6 +97,18 @@ docker compose exec spark /opt/spark/bin/spark-submit /opt/app/iceberg_demo.py -
 docker compose --profile replay down                # stop
 ```
 
+Su un PC con 8 GB di RAM conviene limitare la memoria che WSL2 (e quindi Docker) puo' prendere,
+altrimenti Windows resta senza memoria e si blocca. Crea `%USERPROFILE%\.wslconfig` con
+
+```ini
+[wsl2]
+memory=4GB
+processors=2
+swap=4GB
+```
+
+poi chiudi Docker Desktop, esegui `wsl --shutdown` e riaprilo.
+
 ## Struttura
 
 ```
