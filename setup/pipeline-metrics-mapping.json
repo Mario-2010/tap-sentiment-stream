@@ -1,0 +1,17 @@
+{
+  "settings": { "number_of_shards": 1, "number_of_replicas": 0 },
+  "mappings": {
+    "properties": {
+      "batch_id":        { "type": "long" },
+      "processed_at":    { "type": "date" },
+      "rows_in":         { "type": "integer" },
+      "rows_valid":      { "type": "integer" },
+      "rows_invalid":    { "type": "integer" },
+      "positive":        { "type": "integer" },
+      "negative":        { "type": "integer" },
+      "neutral":         { "type": "integer" },
+      "avg_latency_s":   { "type": "float" },
+      "duration_s":      { "type": "float" }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+.env
+__pycache__/
+.pytest_cache/
+tests/jars/*.jar
+spark-warehouse/
+metastore_db/

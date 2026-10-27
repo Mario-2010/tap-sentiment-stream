@@ -1,0 +1,198 @@
+# TAP Sentiment Stream
+# Pipeline: Mastodon -> Logstash -> Kafka -> Spark (ONNX) -> Iceberg + Elasticsearch -> Kibana / Streamlit
+#
+# Avvio:          docker compose up -d --build
+# Con LLM locale: docker compose --profile llm up -d --build
+
+services:
+
+  # ---------------------------------------------------------------- STREAMING
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: kafka
+    ports:
+      - "29092:29092"          # accesso dall'host (es. kcat -b localhost:29092)
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller          # KRaft: niente ZooKeeper
+      KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 168
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+
+  kafka-init:
+    image: apache/kafka:3.8.0
+    depends_on:
+      kafka: { condition: service_healthy }
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092
+        --create --if-not-exists --topic mastodon-posts
+        --partitions 3 --replication-factor 1 &&
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --describe --topic mastodon-posts
+    restart: "no"
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: tap
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    depends_on:
+      kafka: { condition: service_healthy }
+
+  # ---------------------------------------------------------------- INGESTION
+  # Simula un flusso "live" a partire da post di esempio (utile offline, es. in aula)
+  replayer:
+    image: alpine:3.20
+    container_name: replayer
+    environment:
+      REPLAY_DELAY: ${REPLAY_DELAY:-2}
+    volumes:
+      - ./data:/data:ro
+      - replay-stream:/stream
+      - ./setup/replayer.sh:/replayer.sh:ro
+    command: ["/bin/sh", "/replayer.sh"]
+    profiles: ["replay"]
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.15.3
+    container_name: logstash
+    environment:
+      SOURCE: ${SOURCE:-mastodon}                     # mastodon | replay
+      MASTODON_URL: ${MASTODON_URL:-https://mastodon.social}
+      POLL_INTERVAL: ${POLL_INTERVAL:-20s}
+      LS_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./logstash/pipelines:/pipelines:ro
+      - replay-stream:/stream:ro
+    # Compone la pipeline: input scelto (mastodon/replay) + filtro e output comuni
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - >
+        mkdir -p /tmp/pipeline &&
+        cp /pipelines/common/*.conf /pipelines/input/$${SOURCE}.conf /tmp/pipeline/ &&
+        exec /usr/share/logstash/bin/logstash -f /tmp/pipeline
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+
+  # ---------------------------------------------------------------- PROCESSING
+  spark:
+    build:
+      context: .
+      dockerfile: spark/Dockerfile
+    container_name: spark
+    ports:
+      - "4040:4040"            # Spark UI
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+      KAFKA_TOPIC: mastodon-posts
+      ES_URL: http://elasticsearch:9200
+      ES_INDEX: mastodon-posts
+      NEUTRAL_THRESHOLD: ${NEUTRAL_THRESHOLD:-0.75}
+      MAX_OFFSETS_PER_TRIGGER: ${MAX_OFFSETS_PER_TRIGGER:-200}
+    volumes:
+      - warehouse:/warehouse   # tabelle Iceberg (Lakehouse)
+      - checkpoints:/checkpoints
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+      es-init: { condition: service_completed_successfully }
+    restart: on-failure
+
+  # ---------------------------------------------------------------- STORAGE / INDEXING
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    container_name: elasticsearch
+    ports:
+      - "9200:9200"
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -Eq '\"status\":\"(green|yellow)\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+  es-init:
+    image: curlimages/curl:8.10.1
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+    volumes:
+      - ./setup:/setup:ro
+    entrypoint: ["/bin/sh", "/setup/es-init.sh"]
+    restart: "no"
+
+  # ---------------------------------------------------------------- VISUALIZATION / CONSUMPTION
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.3
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+
+  kibana-init:
+    image: curlimages/curl:8.10.1
+    depends_on:
+      es-init: { condition: service_completed_successfully }
+    volumes:
+      - ./setup:/setup:ro
+    entrypoint: ["/bin/sh", "/setup/kibana-init.sh"]
+    restart: "no"
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: streamlit/Dockerfile
+    container_name: streamlit
+    ports:
+      - "8501:8501"
+    environment:
+      ES_URL: http://elasticsearch:9200
+      ES_INDEX: mastodon-posts
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:1.5b}
+    depends_on:
+      es-init: { condition: service_completed_successfully }
+
+  # LLM locale per la parte generativa del RAG (opzionale: --profile llm)
+  ollama:
+    image: ollama/ollama:0.3.14
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    profiles: ["llm"]
+
+volumes:
+  kafka-data:
+  es-data:
+  warehouse:
+  checkpoints:
+  replay-stream:
+  ollama-models:
