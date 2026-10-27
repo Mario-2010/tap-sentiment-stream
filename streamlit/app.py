@@ -76,7 +76,8 @@ def dashboard(minutes: int) -> None:
         {"time": pd.to_datetime(b["key_as_string"]), **{l["key"]: l["doc_count"] for l in b["labels"]["buckets"]}}
         for b in aggs["timeline"]["buckets"]
     ]).set_index("time").fillna(0)
-    present = [l for l in ["positive", "neutral", "negative"] if l in timeline.columns]
+    # Streamlit assegna i colori alle serie in ordine alfabetico: stesso ordine per colonne e colori
+    present = sorted(l for l in COLORS if l in timeline.columns)
 
     left, right = st.columns([2, 1])
     left.subheader("Post per sentiment nel tempo")
