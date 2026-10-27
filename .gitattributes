@@ -1,0 +1,3 @@
+# Gli script e le configurazioni girano dentro container Linux: niente CRLF anche se clonato su Windows
+* text=auto eol=lf
+*.jar binary
