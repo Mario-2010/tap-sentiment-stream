@@ -35,8 +35,9 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
       interval: 10s
-      timeout: 10s
-      retries: 15
+      timeout: 20s
+      retries: 30
+      start_period: 120s       # dopo un arresto brusco Kafka recupera i log: su PC lenti ci vuole tempo
 
   kafka-init:
     image: apache/kafka:4.1.0
