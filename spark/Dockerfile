@@ -11,7 +11,7 @@ ADD --chmod=644 ${MVN}/org/apache/commons/commons-pool2/2.12.0/commons-pool2-2.1
 ADD --chmod=644 ${MVN}/org/apache/iceberg/iceberg-spark-runtime-4.0_2.13/1.10.1/iceberg-spark-runtime-4.0_2.13-1.10.1.jar /opt/spark/jars/
 
 COPY spark/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir --default-timeout=300 --retries 10 -r /tmp/requirements.txt
 
 COPY common/ /opt/app/
 RUN python3 /opt/app/download_models.py /models sentiment embedding && chmod -R a+rX /models

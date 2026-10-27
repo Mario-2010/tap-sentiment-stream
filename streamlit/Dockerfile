@@ -1,7 +1,7 @@
 FROM python:3.11-slim
 WORKDIR /app
 COPY streamlit/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --default-timeout=300 --retries 10 -r requirements.txt
 COPY common/ /app/
 RUN python download_models.py /models embedding
 COPY streamlit/app.py /app/
