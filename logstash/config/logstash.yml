@@ -1,3 +1,3 @@
-http.host: "0.0.0.0"
-xpack.monitoring.enabled: false
+# Logstash 9: le vecchie impostazioni http.* sono state rimosse, si usa api.http.*
+api.http.host: "0.0.0.0"
 pipeline.ecs_compatibility: disabled
