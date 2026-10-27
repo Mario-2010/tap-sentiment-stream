@@ -34,7 +34,8 @@ flowchart LR
 
 ## Requisiti
 
-- Docker Desktop (o Docker Engine + Compose v2), almeno **8 GB di RAM** assegnati a Docker
+- Docker Desktop (o Docker Engine + Compose v2). Con le impostazioni di default il progetto gira su un portatile
+  con **8 GB di RAM**: Kibana e Kafka UI sono opzionali (`--profile extra`), perche' insieme chiedono circa 2 GB in piu'
 - Internet al primo build (immagini, connettori Maven, modelli Hugging Face) e per la modalita' live
 
 ## Avvio
@@ -44,6 +45,7 @@ cp .env.example .env          # opzionale: personalizza sorgente, soglie, modell
 
 make up                       # live da Mastodon   (= SOURCE=mastodon docker compose up -d --build)
 make replay                   # offline, post di esempio (= SOURCE=replay docker compose --profile replay up -d --build)
+make extra                    # opzionale: Kibana e Kafka UI (servono almeno 12-16 GB di RAM nel PC)
 make llm                      # opzionale: avvia Ollama e scarica il modello per il RAG
 ```
 
@@ -52,8 +54,8 @@ Il primo build richiede qualche minuto. Poi:
 | Servizio | URL |
 |---|---|
 | Streamlit (dashboard, ricerca, RAG) | http://localhost:8501 |
-| Kibana | http://localhost:5601 |
-| Kafka UI (topic, partizioni, messaggi) | http://localhost:8080 |
+| Kibana (con `--profile extra`) | http://localhost:5601 |
+| Kafka UI (con `--profile extra`) | http://localhost:8080 |
 | Spark UI (micro-batch, tempi) | http://localhost:4040 |
 | Elasticsearch | http://localhost:9200 |
 
@@ -74,7 +76,7 @@ curl 'localhost:9200/mastodon-posts/_count'
 
 ### Dashboard Kibana
 
-`kibana-init` crea in automatico le data view `mastodon-posts` e `pipeline-metrics`.
+Con `--profile extra`, `kibana-init` crea in automatico le data view `mastodon-posts` e `pipeline-metrics`.
 Per una dashboard in 3 minuti: *Analytics → Dashboards → Create → Create visualization* e aggiungi
 
 1. **Bar vertical stacked**: asse X `created_at` (date histogram), breakdown `sentiment`;
@@ -82,6 +84,18 @@ Per una dashboard in 3 minuti: *Analytics → Dashboards → Create → Create v
 3. **Metric**: average di `sentiment_value`;
 4. **Table**: top values di `hashtags` con average di `sentiment_value`;
 5. sulla data view `pipeline-metrics`: **Line** di `avg_latency_s` e `rows_in` per `processed_at`.
+
+### Windows (senza `make`)
+
+In PowerShell, dalla cartella del progetto:
+
+```powershell
+$env:SOURCE="replay"
+docker compose --profile replay up -d --build      # avvio offline
+docker compose logs -f spark                        # log dei micro-batch (Ctrl+C per uscire)
+docker compose exec spark /opt/spark/bin/spark-submit /opt/app/iceberg_demo.py --evolve
+docker compose --profile replay down                # stop
+```
 
 ## Struttura
 

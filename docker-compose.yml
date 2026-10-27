@@ -2,7 +2,10 @@
 # Pipeline: Mastodon -> Logstash -> Kafka -> Spark (ONNX) -> Iceberg + Elasticsearch -> Kibana / Streamlit
 #
 # Avvio:          docker compose up -d --build
+# Con Kibana e Kafka UI (servono ~2 GB di RAM in piu'): docker compose --profile extra up -d --build
 # Con LLM locale: docker compose --profile llm up -d --build
+#
+# I limiti di memoria sono pensati per un portatile con 8 GB di RAM e si alzano dal file .env.
 
 services:
 
@@ -26,6 +29,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_HEAP_OPTS: ${KAFKA_HEAP:--Xms256m -Xmx256m}
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
@@ -55,8 +59,10 @@ services:
     environment:
       KAFKA_CLUSTERS_0_NAME: tap
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx192m"
     depends_on:
       kafka: { condition: service_healthy }
+    profiles: ["extra"]
 
   # ---------------------------------------------------------------- INGESTION
   # Simula un flusso "live" a partire da post di esempio (utile offline, es. in aula)
@@ -79,7 +85,7 @@ services:
       SOURCE: ${SOURCE:-mastodon}                     # mastodon | replay
       MASTODON_URL: ${MASTODON_URL:-https://mastodon.cloud}
       POLL_INTERVAL: ${POLL_INTERVAL:-20s}
-      LS_JAVA_OPTS: "-Xms512m -Xmx512m"
+      LS_JAVA_OPTS: ${LOGSTASH_HEAP:--Xms256m -Xmx256m}
     volumes:
       - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
       - ./logstash/pipelines:/pipelines:ro
@@ -109,6 +115,8 @@ services:
       ES_INDEX: mastodon-posts
       NEUTRAL_THRESHOLD: ${NEUTRAL_THRESHOLD:-0.75}
       MAX_OFFSETS_PER_TRIGGER: ${MAX_OFFSETS_PER_TRIGGER:-200}
+      SPARK_DRIVER_MEMORY: ${SPARK_DRIVER_MEMORY:-1g}
+      SPARK_CORES: ${SPARK_CORES:-2}     # = worker Python, ognuno con i suoi modelli ONNX in memoria
     volumes:
       - warehouse:/warehouse   # tabelle Iceberg (Lakehouse)
       - checkpoints:/checkpoints
@@ -126,7 +134,7 @@ services:
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
-      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+      ES_JAVA_OPTS: ${ES_HEAP:--Xms512m -Xmx512m}
     volumes:
       - es-data:/usr/share/elasticsearch/data
 
@@ -148,8 +156,10 @@ services:
       - "5601:5601"
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      NODE_OPTIONS: "--max-old-space-size=700"
     depends_on:
       - elasticsearch
+    profiles: ["extra"]
 
   kibana-init:
     image: curlimages/curl:8.10.1
@@ -159,6 +169,7 @@ services:
       - ./setup:/setup:ro
     entrypoint: ["/bin/sh", "/setup/kibana-init.sh"]
     restart: "no"
+    profiles: ["extra"]
 
   streamlit:
     build:

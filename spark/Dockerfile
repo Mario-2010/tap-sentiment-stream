@@ -23,5 +23,5 @@ USER spark
 ENV HOME=/home/spark PYTHONPATH=/opt/app
 WORKDIR /opt/app
 
-CMD ["/opt/spark/bin/spark-submit", "--master", "local[*]", "--driver-memory", "2g", \
-     "--py-files", "/opt/app/onnx_models.py", "/opt/app/streaming_job.py"]
+# Memoria del driver e numero di core da variabili d'ambiente (SPARK_DRIVER_MEMORY, SPARK_CORES)
+CMD ["/bin/sh", "-c", "exec /opt/spark/bin/spark-submit --master \"local[${SPARK_CORES:-2}]\" --driver-memory \"${SPARK_DRIVER_MEMORY:-1g}\" --py-files /opt/app/onnx_models.py /opt/app/streaming_job.py"]
