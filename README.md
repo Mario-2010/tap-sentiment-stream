@@ -103,7 +103,7 @@ altrimenti Windows resta senza memoria e si blocca. Crea `%USERPROFILE%\.wslconf
 ```ini
 [wsl2]
 memory=4GB
-processors=2
+processors=4
 swap=4GB
 ```
 
