@@ -1,6 +1,7 @@
 """TAP Sentiment Stream: dashboard live, ricerca semantica e RAG sui post analizzati."""
 import os
 
+import altair as alt
 import pandas as pd
 import requests
 import streamlit as st
@@ -76,12 +77,20 @@ def dashboard(minutes: int) -> None:
         {"time": pd.to_datetime(b["key_as_string"]), **{l["key"]: l["doc_count"] for l in b["labels"]["buckets"]}}
         for b in aggs["timeline"]["buckets"]
     ]).set_index("time").fillna(0)
-    # Streamlit assegna i colori alle serie in ordine alfabetico: stesso ordine per colonne e colori
-    present = sorted(l for l in COLORS if l in timeline.columns)
+    present = [l for l in COLORS if l in timeline.columns]
+    long = timeline[present].reset_index().melt("time", var_name="sentiment", value_name="post")
 
     left, right = st.columns([2, 1])
     left.subheader("Post per sentiment nel tempo")
-    left.area_chart(timeline[present], color=[COLORS[l] for l in present])
+    # Colori legati esplicitamente all'etichetta (verde = positive, rosso = negative)
+    chart = alt.Chart(long).mark_area(opacity=0.85).encode(
+        x=alt.X("time:T", title=None, axis=alt.Axis(format="%H:%M")),
+        y=alt.Y("post:Q", stack="zero", title="post"),
+        color=alt.Color("sentiment:N", title=None, legend=alt.Legend(orient="bottom"),
+                        scale=alt.Scale(domain=list(COLORS), range=list(COLORS.values()))),
+        order=alt.Order("sentiment:N"),
+    )
+    left.altair_chart(chart, use_container_width=True)
     right.subheader("Hashtag piu' frequenti")
     tags = pd.DataFrame([{"hashtag": f"#{b['key']}", "post": b["doc_count"],
                           "sentiment medio": round(b["avg"]["value"] or 0, 2)}
