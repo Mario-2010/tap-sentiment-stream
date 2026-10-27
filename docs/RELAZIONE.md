@@ -198,6 +198,7 @@ silenziosamente con un tipo sbagliato. E' una piccola forma di *data contract*.
 ### 3.7 Data Consumption: Kibana, Streamlit e RAG
 
 **Kibana** serve per l'esplorazione libera dei dati e per monitorare la pipeline (indice `pipeline-metrics`).
+E' nel profilo Compose `extra` (insieme a Kafka UI) e si avvia solo se la macchina ha RAM a sufficienza (vedi 7.1).
 **Streamlit** e' l'applicazione "per l'utente finale", con tre schede:
 
 1. **Dashboard live** (si aggiorna ogni 10 s): numero di post, percentuali per sentiment, sentiment medio,
@@ -289,6 +290,30 @@ diversi GB di RAM (server, MySQL, Elasticsearch e Airflow propri).
 - **Kubernetes:** ogni servizio del compose corrisponde a un Deployment o StatefulSet; esistono operatori per
   Kafka (Strimzi), Spark (Spark Operator) ed Elasticsearch (ECK).
 
+### 7.1 Il caso opposto: farlo girare su un portatile da 8 GB
+
+Scalare vuol dire anche "scendere". Il progetto e' stato provato su un portatile con 8 GB di RAM e un i5 a 4 core,
+dove la configurazione completa (circa 7 GB per i soli container) bloccava Docker Desktop. Le scelte fatte:
+
+- **profili di Docker Compose:** Kibana e Kafka UI, che sono solo strumenti di visualizzazione, stanno nel profilo
+  `extra`; la pipeline completa e Streamlit partono comunque. Totale: circa 3 GB;
+- **heap JVM dimensionati** con variabili d'ambiente (`ES_HEAP`, `LOGSTASH_HEAP`, `KAFKA_HEAP`,
+  `SPARK_DRIVER_MEMORY`, `SPARK_CORES`): si cambiano dal file `.env` senza toccare il codice;
+- **limite a WSL2** (`.wslconfig`: 4 GB, 4 processori), cosi' Windows non resta senza memoria;
+- **healthcheck tolleranti** (`start_period`): dopo un arresto brusco Kafka ricontrolla i suoi log e ci mette di piu'.
+
+Problemi reali incontrati durante l'installazione e come sono stati risolti (utili anche per capire gli strumenti):
+
+| Problema | Causa | Soluzione |
+|---|---|---|
+| Logstash si chiude all'avvio | in Logstash 9 l'impostazione `http.host` e' stata rinominata | `api.http.host` in `logstash.yml` |
+| Hashtag sempre vuoti | Logstash riserva il campo `tags` alle sue etichette e sposta altrove un array di oggetti (`_tags`) | il filtro Ruby legge `_tags` |
+| Dashboard: `pyarrow requires NumPy 2.0` | pyarrow non fissato, pip installava l'ultima versione | versione fissata (`pyarrow==17.0.0`), come in Spark |
+| Kafka `unhealthy` | CPU satura: Kafka non rispondeva ai propri heartbeat entro 2 s | piu' processori a WSL2 e `start_period` |
+
+Tutti e quattro confermano una regola pratica: **fissare le versioni** di immagini e librerie e leggere i log
+del servizio che fallisce prima di cambiare qualcosa.
+
 ---
 
 ## 8. Test
@@ -323,10 +348,12 @@ La cartella `tests/` contiene 7 test automatici (pytest), tutti verdi, che giran
 1. **Problema e idea** (1 min): sentiment in tempo reale + domande in linguaggio naturale.
 2. **Architettura** (2 min): il diagramma, layer per layer, e il "viaggio di un post".
 3. **Demo live** (4 min):
-   - Kafka UI: topic, 3 partizioni, messaggi in arrivo;
-   - `make logs`: un micro-batch con le sue metriche;
+   - `docker compose logs --tail 20 spark`: un micro-batch con le sue metriche;
+   - Spark UI (http://localhost:4040, scheda *Structured Streaming*): input rate e durata dei batch;
+   - (solo con `--profile extra`) Kafka UI: topic, 3 partizioni, messaggi in arrivo;
    - Streamlit: dashboard che si aggiorna, ricerca semantica (una frase senza parole in comune), domanda al RAG;
-   - `make evolve`: snapshot, time travel e schema evolution su Iceberg.
+   - `docker compose exec spark /opt/spark/bin/spark-submit /opt/app/iceberg_demo.py --evolve`: snapshot,
+     time travel e schema evolution su Iceberg.
 4. **Scelte tecniche** (3 min): Kafka vs code, Pandas UDF + ONNX, Iceberg vs Parquet, idempotenza.
 5. **Limiti e sviluppi** (1 min).
 
