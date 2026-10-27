@@ -6,6 +6,8 @@ con **ricerca semantica** e un piccolo sistema **RAG** per interrogare i dati in
 Progetto per l'esame di *Technologies for Advanced Programming* (A.A. 2026/2027, prof. Salvatore Nicotra).
 Autore: Mario Gabriele.
 
+Le versioni seguono quelle usate a lezione nei repository [tap2026](https://github.com/tapunict/tap2026) e [tap2027](https://github.com/tapunict/tap2027) (Spark 4.0.1, Logstash 9.5.5, Kafka in KRaft).
+
 ```mermaid
 flowchart LR
     M[Mastodon API<br/>timeline pubblica] -->|http_poller| L[Logstash]
@@ -21,12 +23,12 @@ flowchart LR
 
 | Layer | Tecnologia | Ruolo |
 |---|---|---|
-| Ingestion | Logstash 8.15 | Polling dell'API Mastodon (o lettura del file di replay), filtro e normalizzazione |
-| Streaming | Apache Kafka 3.8 (KRaft) | Backbone: disaccoppia produttori e consumatori, buffer persistente, replay |
-| Processing | Spark 3.5 Structured Streaming | Parsing, pulizia, deduplica, micro-batch con checkpoint |
+| Ingestion | Logstash 9.5 | Polling dell'API Mastodon (o lettura del file di replay), filtro e normalizzazione |
+| Streaming | Apache Kafka 4.1 (KRaft) | Backbone: disaccoppia produttori e consumatori, buffer persistente, replay |
+| Processing | Spark 4.0 Structured Streaming | Parsing, pulizia, deduplica, micro-batch con checkpoint |
 | AI Inference | ONNX Runtime (Pandas UDF) | DistilBERT SST-2 per il sentiment, MiniLM per gli embedding (384 dim.) |
-| Storage | Apache Iceberg 1.6 | Storico analitico: ACID, time travel, schema evolution |
-| Indexing / Search | Elasticsearch 8.15 | Full-text + ricerca vettoriale kNN |
+| Storage | Apache Iceberg 1.10 | Storico analitico: ACID, time travel, schema evolution |
+| Indexing / Search | Elasticsearch 9.5 | Full-text + ricerca vettoriale kNN |
 | Consumption | Kibana, Streamlit, Ollama | Dashboard, ricerca semantica, RAG |
 | Deploy | Docker Compose | Tutto in container, avvio con un comando |
 
@@ -68,7 +70,7 @@ curl 'localhost:9200/mastodon-posts/_count'
 
 > **All'esame:** se la rete dell'aula non e' affidabile usa `make replay`: la pipeline e' identica,
 > cambia solo l'input di Logstash. Se un'istanza Mastodon non espone la timeline pubblica senza
-> login, cambia `MASTODON_URL` nel file `.env` (es. `https://fosstodon.org`).
+> login, cambia `MASTODON_URL` nel file `.env` (es. `https://mastodon.social`). L'istanza di default, `mastodon.cloud`, e' quella usata negli esempi del corso.
 
 ### Dashboard Kibana
 
@@ -101,7 +103,7 @@ docs/RELAZIONE.md           relazione del progetto
 
 ```bash
 pip install -r tests/requirements.txt
-# serve Java 17 (Spark 3.5 non supporta Java 21) e il jar iceberg-spark-runtime-3.5_2.12-1.6.1 in tests/jars/
+# serve Java 17 o 21 e il jar iceberg-spark-runtime-4.0_2.13-1.10.1 in tests/jars/
 python -m pytest -q tests
 ```
 

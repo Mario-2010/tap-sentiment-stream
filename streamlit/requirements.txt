@@ -1,5 +1,5 @@
 streamlit==1.39.0
-elasticsearch==8.15.1
+elasticsearch==9.5.1
 requests==2.32.3
 numpy==1.26.4
 pandas==2.2.3

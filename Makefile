@@ -28,5 +28,5 @@ down:
 clean:       ## Ferma tutto e cancella i dati (volumi)
 	docker compose --profile replay --profile llm down -v
 
-test:        ## Test locali (serve Java 17 + pip install -r tests/requirements.txt)
+test:        ## Test locali (serve Java 17 o 21 + pip install -r tests/requirements.txt)
 	python -m pytest -q tests

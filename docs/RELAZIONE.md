@@ -22,7 +22,8 @@ La domanda a cui il sistema risponde e' semplice: *"cosa sta dicendo la gente, i
 e con quale tono?"*. Lo stesso schema si applica a recensioni di prodotti, ticket di assistenza o log applicativi.
 
 Ho scelto Mastodon perche' espone un'API pubblica gratuita, senza account e senza chiavi, con dati reali
-e continui. Per le demo senza Internet il progetto include una modalita' *replay* che riproduce dei post di esempio.
+e continui; e' anche la sorgente usata negli esempi del corso (istanza `mastodon.cloud`). Le versioni degli
+strumenti sono le stesse usate a lezione: Spark 4.0.1, Logstash 9.5.5, Kafka in modalita' KRaft. Per le demo senza Internet il progetto include una modalita' *replay* che riproduce dei post di esempio.
 
 ---
 
@@ -101,7 +102,7 @@ ogni consumatore tiene il proprio *offset*. Questo permette di:
 - fare **replay**: rielaborare i dati passati riportando indietro l'offset;
 - **scalare** in orizzontale: le 3 partizioni possono essere lette da 3 task Spark in parallelo.
 
-Uso Kafka 3.8 in modalita' **KRaft**, cioe' senza ZooKeeper: i metadati del cluster sono gestiti da Kafka
+Uso Kafka 4.1 in modalita' **KRaft**, cioe' senza ZooKeeper: i metadati del cluster sono gestiti da Kafka
 stesso tramite il protocollo di consenso Raft.
 
 ### 3.3 Processing: Spark Structured Streaming
