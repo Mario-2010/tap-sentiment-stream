@@ -310,8 +310,9 @@ Problemi reali incontrati durante l'installazione e come sono stati risolti (uti
 | Hashtag sempre vuoti | Logstash riserva il campo `tags` alle sue etichette e sposta altrove un array di oggetti (`_tags`) | il filtro Ruby legge `_tags` |
 | Dashboard: `pyarrow requires NumPy 2.0` | pyarrow non fissato, pip installava l'ultima versione | versione fissata (`pyarrow==17.0.0`), come in Spark |
 | Kafka `unhealthy` | CPU satura: Kafka non rispondeva ai propri heartbeat entro 2 s | piu' processori a WSL2 e `start_period` |
+| Dashboard vuota dopo aver riavviato Logstash | Logstash rilegge tutto il file di replay e rimanda a Kafka i vecchi post: Spark deve smaltire l'arretrato (backpressure con `maxOffsetsPerTrigger`) prima di vedere i nuovi | reset pulito (`docker compose down -v`) prima della demo; i sink idempotenti evitano comunque i duplicati |
 
-Tutti e quattro confermano una regola pratica: **fissare le versioni** di immagini e librerie e leggere i log
+Tutti confermano una regola pratica: **fissare le versioni** di immagini e librerie e leggere i log
 del servizio che fallisce prima di cambiare qualcosa.
 
 ---
