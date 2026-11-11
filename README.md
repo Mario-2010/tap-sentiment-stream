@@ -45,7 +45,7 @@ In PowerShell, dalla cartella del progetto:
 ```powershell
 $env:SOURCE="replay"
 docker compose --profile replay up -d --build      # avvio offline
-docker compose logs -f spark                        # log dei micro-batch (Ctrl+C per uscire)
+docker compose logs -f spark                        # log dei micro-batch
 docker compose exec spark /opt/spark/bin/spark-submit /opt/app/iceberg_demo.py --evolve
 docker compose --profile replay down                # stop
 ```
