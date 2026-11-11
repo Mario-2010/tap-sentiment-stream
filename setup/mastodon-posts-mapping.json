@@ -1,0 +1,26 @@
+{
+  "settings": { "number_of_shards": 1, "number_of_replicas": 0 },
+  "mappings": {
+    "dynamic": "strict",
+    "properties": {
+      "id":               { "type": "keyword" },
+      "source":           { "type": "keyword" },
+      "author":           { "type": "keyword" },
+      "url":              { "type": "keyword", "index": false },
+      "language":         { "type": "keyword" },
+      "text":             { "type": "text", "analyzer": "english" },
+      "hashtags":         { "type": "keyword" },
+      "created_at":       { "type": "date" },
+      "processed_at":     { "type": "date" },
+      "replies_count":    { "type": "integer" },
+      "reblogs_count":    { "type": "integer" },
+      "favourites_count": { "type": "integer" },
+      "sentiment":        { "type": "keyword" },
+      "sentiment_score":  { "type": "float" },
+      "sentiment_value":  { "type": "float" },
+      "embedding": {
+        "type": "dense_vector", "dims": 384, "index": true, "similarity": "cosine"
+      }
+    }
+  }
+}
