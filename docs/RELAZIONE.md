@@ -2,7 +2,7 @@
 ## Analisi del sentiment in tempo reale su Mastodon con ricerca semantica e RAG
 
 **Corso:** Technologies for Advanced Programming, A.A. 2026/2027, prof. Salvatore Nicotra
-**Studente:** Mario Gabriele, Corso di Laurea in Matematica e Informatica (L-31)
+**Studente:** Mario Gabriele Vittoria, Corso di Laurea in Matematica e Informatica (L-31)
 
 ---
 
